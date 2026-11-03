@@ -1,0 +1,67 @@
+name: iti-final
+
+x-postgres: &postgres
+  build: .
+  image: iti-postgres-pglogical:17
+  restart: unless-stopped
+  mem_limit: 768m
+  environment:
+    POSTGRES_USER: postgres
+    POSTGRES_DB: iti
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}
+    POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+  command:
+    - postgres
+    - -c
+    - shared_preload_libraries=pglogical
+    - -c
+    - wal_level=logical
+    - -c
+    - max_replication_slots=10
+    - -c
+    - max_wal_senders=10
+    - -c
+    - max_worker_processes=10
+    - -c
+    - track_commit_timestamp=on
+    - -c
+    - pglogical.conflict_resolution=last_update_wins
+    - -c
+    - max_slot_wal_keep_size=1GB
+    - -c
+    - max_connections=50
+  healthcheck:
+    test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "iti"]
+    interval: 5s
+    timeout: 3s
+    retries: 20
+    start_period: 10s
+  networks:
+    - iti
+
+services:
+  bd1:
+    <<: *postgres
+    hostname: bd1
+    ports:
+      - "127.0.0.1:5541:5432"
+    volumes:
+      - bd1_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+
+  bd2:
+    <<: *postgres
+    hostname: bd2
+    ports:
+      - "127.0.0.1:5542:5432"
+    volumes:
+      - bd2_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+
+networks:
+  iti:
+    driver: bridge
+
+volumes:
+  bd1_data:
+  bd2_data:
